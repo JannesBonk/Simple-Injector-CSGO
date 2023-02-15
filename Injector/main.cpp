@@ -59,7 +59,7 @@ DWORD GetModule(DWORD pid, const char* name)
 
 void main() noexcept
 {
-	SetConsoleTitle("Injector by Jannes#7012");
+	SetConsoleTitle("Injector by JannesBonk#7012");
 	hwndproc = FindWindowA(0, "Counter-Strike: Global Offensive - Direct3D 9");
 	GetWindowThreadProcessId(hwndproc, &pid);
 	process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
@@ -73,18 +73,6 @@ void main() noexcept
 	cin >> dll_path;
 	if (pid > 1)
 	{
-		while (true)
-		{
-			HWND status = FindWindow(0, "Counter-Strike: Global Offensive - Direct3D 9");
-			GetWindowThreadProcessId(status, &pid);
-			HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-			DWORD client = GetModule(pid, "client.dll");
-
-			if (pid > 1)
-			{
-				break;
-			}
-		}
 		{
 			const char* proc_name = "csgo.exe";
 			DWORD proc_id = 0;
