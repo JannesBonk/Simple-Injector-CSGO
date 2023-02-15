@@ -15,16 +15,31 @@ HANDLE process;
 HWND hwndproc;
 DWORD clientDLL;
 
-bool inject(DWORD pid, const char* dll)
+DWORD get_proc_id(const char* proc_name)
 {
-	char myDLL[MAX_PATH];
-	GetFullPathNameA(dll, MAX_PATH, myDLL, 0);
-	HANDLE hProcess = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, pid);
-	LPVOID allocatedMem = VirtualAllocEx(hProcess, NULL, sizeof(myDLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	WriteProcessMemory(hProcess, allocatedMem, myDLL, sizeof(myDLL), NULL);
-	CreateRemoteThread(hProcess, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibrary, allocatedMem, 0, 0);
-	CloseHandle(hProcess);
-	return TRUE;
+	DWORD proc_id = 0;
+	auto* const h_snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (h_snap != INVALID_HANDLE_VALUE)
+	{
+		PROCESSENTRY32 proc_entry;
+		proc_entry.dwSize = sizeof(proc_entry);
+
+		if (Process32First(h_snap, &proc_entry))
+		{
+			do
+			{
+				if (!_stricmp(proc_entry.szExeFile, proc_name))
+				{
+					proc_id = proc_entry.th32ProcessID;
+					break;
+				}
+			} while (Process32Next(h_snap, &proc_entry));
+		}
+	}
+
+	CloseHandle(h_snap);
+	return proc_id;
 }
 
 DWORD GetModule(DWORD pid, const char* name)
@@ -53,24 +68,11 @@ void main() noexcept
 	GetWindowThreadProcessId(status, &pid);
 	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
 	DWORD client = GetModule(pid, "client.dll");
-	char dllpath[512];
-	if (pid > 1)
-		cout << "CSGO detected!" << endl;
-	else
-		cout << "CSGO is not running, injector will auto-launch after entering dll path" << endl;
-	cout << "" << endl;
+	char dll_path[512];
 	cout << "Enter DLL path or drag and drop your DLL here" << endl;
-	cin >> dllpath;
+	cin >> dll_path;
 	if (pid > 1)
 	{
-		inject(pid, dllpath);
-		cout << "File injcected succesfully!" << endl;
-		PlaySoundA(TEXT("C:\\Windows\\Media\\notify.wav"), 0, 0);
-		system("pause");
-	}
-	else
-	{
-		ShellExecuteA(NULL, "open", "steam://rungameid/730", NULL, NULL, SW_SHOWNORMAL);
 		while (true)
 		{
 			HWND status = FindWindow(0, "Counter-Strike: Global Offensive - Direct3D 9");
@@ -79,11 +81,99 @@ void main() noexcept
 			DWORD client = GetModule(pid, "client.dll");
 
 			if (pid > 1)
+			{
 				break;
+			}
 		}
-		Sleep(7500);
-		inject(pid, dllpath);
+		{
+			const char* proc_name = "csgo.exe";
+			DWORD proc_id = 0;
+
+			while (!proc_id)
+			{
+				proc_id = get_proc_id(proc_name);
+				Sleep(30);
+			}
+
+			auto* const h_proc = OpenProcess(PROCESS_ALL_ACCESS, 0, proc_id);
+
+			if (h_proc && h_proc != INVALID_HANDLE_VALUE)
+			{
+				const LPVOID nt_open_file = GetProcAddress(LoadLibraryW(L"ntdll"), "NtOpenFile");//ggez
+				if (nt_open_file)
+				{
+					char original_bytes[5];
+					memcpy(original_bytes, nt_open_file, 5);
+					WriteProcessMemory(h_proc, nt_open_file, original_bytes, 5, nullptr);
+				}
+
+				auto* loc = VirtualAllocEx(h_proc, nullptr, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+				WriteProcessMemory(h_proc, loc, dll_path, strlen(dll_path) + 1, nullptr);
+				auto* const h_thread = CreateRemoteThread(h_proc, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(LoadLibraryA), loc, 0, nullptr);
+
+				if (h_thread)CloseHandle(h_thread);
+			}
+		}
 		cout << "File injcected succesfully!" << endl;
+		PlaySoundA(TEXT("C:\\Windows\\Media\\notify.wav"), 0, 0);
+		system("pause");
+	}
+	else
+	{
+		cout << "CSGO is not detect, please open csgo so i can inject the DLL" << endl;
+		while (true)
+		{
+			const char* proc_name = "csgo.exe";
+			DWORD proc_id = 0;
+
+			while (!proc_id)
+			{
+				proc_id = get_proc_id(proc_name);
+				Sleep(30);
+			}
+
+			HWND status = FindWindow(0, "Counter-Strike: Global Offensive - Direct3D 9");
+			GetWindowThreadProcessId(status, &pid);
+			HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+			DWORD client = GetModule(pid, "client.dll");
+
+			if (pid > 1)
+			{
+				cout << "CSGO found! Injecting DLL" << endl;
+				break;
+			}
+		}
+		Sleep(5500);
+		{
+			const char* proc_name = "csgo.exe";
+			DWORD proc_id = 0;
+
+			while (!proc_id)
+			{
+				proc_id = get_proc_id(proc_name);
+				Sleep(30);
+			}
+
+			auto* const h_proc = OpenProcess(PROCESS_ALL_ACCESS, 0, proc_id);
+
+			if (h_proc && h_proc != INVALID_HANDLE_VALUE)
+			{
+				const LPVOID nt_open_file = GetProcAddress(LoadLibraryW(L"ntdll"), "NtOpenFile");//ggez
+				if (nt_open_file)
+				{
+					char original_bytes[5];
+					memcpy(original_bytes, nt_open_file, 5);
+					WriteProcessMemory(h_proc, nt_open_file, original_bytes, 5, nullptr);
+				}
+
+				auto* loc = VirtualAllocEx(h_proc, nullptr, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+				WriteProcessMemory(h_proc, loc, dll_path, strlen(dll_path) + 1, nullptr);
+				auto* const h_thread = CreateRemoteThread(h_proc, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(LoadLibraryA), loc, 0, nullptr);
+
+				if (h_thread)CloseHandle(h_thread);
+			}
+		}
+		cout << "DLL injcected succesfully!" << endl;
 		PlaySoundA("C:\\Windows\\Media\\notify.wav", 0, 0);
 		system("pause");
 	}
