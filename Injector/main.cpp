@@ -102,7 +102,7 @@ void main() noexcept
 				if (h_thread)CloseHandle(h_thread);
 			}
 		}
-		cout << "File injcected succesfully!" << endl;
+		cout << "DLL injcected succesfully!" << endl;
 		PlaySoundA(TEXT("C:\\Windows\\Media\\notify.wav"), 0, 0);
 		system("pause");
 	}
